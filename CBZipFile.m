@@ -40,7 +40,6 @@ static int CaseInsensitiveComparer (unzFile file, const char *filename1, const c
                     format:@"Only supports NSKeyedArchiver coders"];
         return;
     }
-
     [coder encodeObject:_hashTable forKey:@"hashTable"];
     [coder encodeObject:_path forKey:@"path"];
 }
@@ -98,12 +97,14 @@ static int CaseInsensitiveComparer (unzFile file, const char *filename1, const c
             while (err == UNZ_OK && err != UNZ_END_OF_LIST_OF_FILE) {
                 char fileName[PATH_MAX];
                 if (unzGetCurrentFileInfo64(_unzipFile, NULL, fileName, PATH_MAX, NULL, 0, NULL, 0) == UNZ_OK) {
-                    unz64_file_pos file_pos;
-                    if (unzGetFilePos64(_unzipFile, &file_pos) == UNZ_OK) {
-                        NSData *fileInfoData = [NSData dataWithBytes:&file_pos length:sizeof(unz64_file_pos)];
-                        if (fileInfoData)
-                            [tempHashTable setObject:fileInfoData forKey:@(fileName)];
-
+                    if (fileName!=NULL) {
+                        unz64_file_pos file_pos;
+                        if (unzGetFilePos64(_unzipFile, &file_pos) == UNZ_OK) {
+                            NSData *fileInfoData = [NSData dataWithBytes:&file_pos length:sizeof(unz64_file_pos)];
+                            if (fileInfoData) {
+                                [tempHashTable setObject:fileInfoData forKey:[@(fileName) precomposedStringWithCanonicalMapping]];
+                            }
+                        }
                     }
                 }
                 err = unzGoToNextFile(_unzipFile);
@@ -285,7 +286,8 @@ static int CaseInsensitiveComparer (unzFile file, const char *filename1, const c
                                                        }
                                                    }];
             }
-            NSData *data = _hashTable[_fileName];
+
+            NSData *data = _hashTable[[_fileName precomposedStringWithCanonicalMapping]];
 
             if (data) {
                 unz64_file_pos file_pos;
