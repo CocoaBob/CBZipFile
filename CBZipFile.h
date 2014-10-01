@@ -16,7 +16,7 @@
 /**
  The file system path where the zip file is located.
  */
-@property (nonatomic, readonly) NSString *path;
+@property (nonatomic, strong) NSString *path;
 
 ///-----------------------------------------------
 /// @name Initializing
