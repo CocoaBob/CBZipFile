@@ -137,7 +137,7 @@
 /**
  Check if a given file name exists in the zip file.
 
- @param fileName The file name which needs to be checked.
+ @param fileName The file name which needs to be checked, including directories.
 
  @param caseSensitive If it's a case-sensitive search or not.
 
@@ -173,7 +173,7 @@
 /**
  Return the data of a file.
 
- @param fileName The name of the file.
+ @param fileName The name of the file in the Zip package, including directories.
 
  @param caseSensitive If it's a case-sensitive search or not.
 
@@ -192,5 +192,30 @@
  @see - open
  */
 - (NSData *)readWithFileName:(NSString *)fileName caseSensitive:(BOOL)caseSensitive maxLength:(NSUInteger)maxLength;
+
+/**
+ Extract a file to a specific path.
+ 
+ @param fileName The name of the file in the Zip package, including directories.
+ 
+ @param caseSensitive If it's a case-sensitive search or not.
+ 
+ @param maxLength The maximum lengh of data to read.
+ 
+ @param toPath The path to write the file's data.
+ 
+ @return `YES` if extraction succeeded. Otherwise, `NO`.
+ 
+ @note It's thread-safe.
+ 
+ @note In the case that the zip file contains many files, the performance will be much better if the hash table has been built and if it's case sensitive.
+ 
+ @warning If the hash table hasn't been built, you have to open the zip file manually.
+ 
+ @see - buildHashTable
+ 
+ @see - open
+ */
+- (BOOL)extractWithFileName:(NSString *)fileName caseSensitive:(BOOL)caseSensitive maxLength:(NSUInteger)maxLength toPath:(NSString *)toPath;
 
 @end

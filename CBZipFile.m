@@ -261,12 +261,56 @@ static int CaseInsensitiveComparer (unzFile file, const char *filename1, const c
             }
         };
         free(buffer);
-        
         unzCloseCurrentFile(_unzipFile);
         
         return data;
     }
     return nil;
+}
+
+
+- (BOOL)extractCurrentFile:(NSUInteger)maxLength toPath:(NSString *)toPath {
+    NSAssert(_unzipFile, @"_unzipFile");
+    
+    BOOL successful = NO;
+    if (unzOpenCurrentFile(_unzipFile) == UNZ_OK) {
+        NSString *dir = [toPath stringByDeletingLastPathComponent];
+        
+        if (![[NSFileManager defaultManager] fileExistsAtPath:dir]) {
+            [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+        }
+        if ([[NSFileManager defaultManager] createFileAtPath:toPath contents:nil attributes:nil]) {
+            NSFileHandle *fileHandler = [NSFileHandle fileHandleForWritingAtPath:toPath];
+            if (fileHandler) {
+                NSUInteger length = 0;
+                void *buffer = (void *)malloc(BUFFER_SIZE);
+                while (YES) {
+                    unsigned size = length + BUFFER_SIZE <= maxLength ? BUFFER_SIZE : maxLength - length;
+                    int readLength = unzReadCurrentFile(_unzipFile, buffer, size);
+                    if (readLength < 0) {
+                        break;
+                    }
+                    if (readLength > 0) {
+                        @try {
+                            [fileHandler writeData:[NSData dataWithBytes:buffer length:readLength]];
+                        }
+                        @catch (NSException *exception) {
+                            break;
+                        }
+                        length += readLength;
+                    }
+                    if (readLength == 0) {
+                        successful = YES;
+                        break;
+                    }
+                };
+                free(buffer);
+            }
+        }
+
+        unzCloseCurrentFile(_unzipFile);
+    }
+    return successful;
 }
 
 - (NSData *)readWithFileName:(NSString *)fileName caseSensitive:(BOOL)caseSensitive maxLength:(NSUInteger)maxLength {
@@ -310,6 +354,50 @@ static int CaseInsensitiveComparer (unzFile file, const char *filename1, const c
         Block();
     });
 
+    return returnValue;
+}
+
+- (BOOL)extractWithFileName:(NSString *)fileName caseSensitive:(BOOL)caseSensitive maxLength:(NSUInteger)maxLength toPath:(NSString *)toPath {
+    NSAssert(_unzipFile, @"_unzipFile");
+    NSAssert(fileName, @"fileName");
+    
+    __block BOOL returnValue = NO;
+    void (^Block)(void) = ^void (void) {
+        if (_hashTable) {
+            __block NSString *_fileName = fileName;
+            if (!caseSensitive) {
+                [[self fileNames] enumerateObjectsWithOptions:NSEnumerationConcurrent
+                                                   usingBlock:^(NSString *obj, NSUInteger idx, BOOL *stop) {
+                                                       if ([obj caseInsensitiveCompare:fileName] == NSOrderedSame) {
+                                                           _fileName = obj;
+                                                           *stop = YES;
+                                                       }
+                                                   }];
+            }
+            
+            NSData *data = _hashTable[[_fileName precomposedStringWithCanonicalMapping]];
+            
+            if (data) {
+                unz64_file_pos file_pos;
+                [data getBytes:&file_pos];
+                if (&file_pos != NULL) {
+                    if (unzGoToFilePos64(_unzipFile, &file_pos) == UNZ_OK) {
+                        returnValue = [self extractCurrentFile:maxLength toPath:toPath];
+                    }
+                }
+            }
+        }
+        else {
+            if (unzLocateFile(_unzipFile, [fileName UTF8String], caseSensitive?NULL:CaseInsensitiveComparer) == UNZ_OK) {
+                returnValue = [self extractCurrentFile:maxLength toPath:toPath];
+            }
+        }
+    };
+    
+    dispatch_sync([self workingQueue], ^{
+        Block();
+    });
+    
     return returnValue;
 }
 
